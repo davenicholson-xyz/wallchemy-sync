@@ -92,9 +92,6 @@ func (ipc *IPCListener) handleConnection(conn net.Conn) {
 	message := string(buf[:n])
 	response := ipc.handler(message)
 
-	// message := strings.TrimSpace(string(buf[:n]))
-	// fmt.Printf("Received message: %q\n", message)
-
 	_, err = conn.Write([]byte(response))
 	if err != nil {
 		log.Println("Write error:", err)

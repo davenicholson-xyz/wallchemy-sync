@@ -18,14 +18,16 @@ type MulticastListener struct {
 	stopChan   chan struct{}
 	handler    func(string, *net.UDPAddr)
 	localAddr  *net.UDPAddr
+	filterSelf bool
 }
 
-func NewMulticastListener(port int, id string, handlerFn func(string, *net.UDPAddr)) *MulticastListener {
+func NewMulticastListener(port int, id string, handlerFn func(string, *net.UDPAddr), filterSelf bool) *MulticastListener {
 	return &MulticastListener{
 		identifier: id,
 		port:       port,
 		stopChan:   make(chan struct{}),
 		handler:    handlerFn,
+		filterSelf: filterSelf,
 	}
 }
 
@@ -74,10 +76,34 @@ func (ml *MulticastListener) listenLoop() {
 				continue
 			}
 
+			if ml.filterSelf && src.IP.Equal(ml.localAddr.IP) {
+				continue
+			}
+
 			message := string(buffer[:n])
 			ml.handler(message, src)
 		}
 	}
+}
+
+func (ml *MulticastListener) Broadcast(message string, sendToSelf bool) error {
+	if ml.conn == nil {
+		return fmt.Errorf("connection not initialized")
+	}
+
+	addr := &net.UDPAddr{
+		IP:   net.ParseIP(multicastAddress),
+		Port: ml.port,
+	}
+
+	originalFilter := ml.filterSelf
+	if sendToSelf {
+		ml.filterSelf = false
+		defer func() { ml.filterSelf = originalFilter }()
+	}
+
+	_, err := ml.conn.WriteToUDP([]byte(message), addr)
+	return err
 }
 
 func (ml *MulticastListener) Stop() {
