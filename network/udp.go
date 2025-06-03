@@ -7,21 +7,24 @@ import (
 )
 
 const (
-	multicastAddress = "239.192.0.1:9999"
+	multicastAddress = "239.192.0.1"
 	maxDatagramSize  = 8192
 )
 
 type MulticastListener struct {
 	identifier string
+	port       int
 	conn       *net.UDPConn
 }
 
-func NewMulticastListener(id string) *MulticastListener {
-	return &MulticastListener{identifier: id}
+func NewMulticastListener(port int, id string) *MulticastListener {
+	return &MulticastListener{identifier: id, port: port}
 }
 
 func (ml *MulticastListener) Start() {
-	addr, err := net.ResolveUDPAddr("udp", multicastAddress)
+	addrStr := fmt.Sprintf("%s:%d", multicastAddress, ml.port)
+
+	addr, err := net.ResolveUDPAddr("udp", addrStr)
 	if err != nil {
 		log.Fatal("ResolveUDPAddr fail:", err)
 	}
@@ -36,7 +39,7 @@ func (ml *MulticastListener) Start() {
 		log.Printf("SetReadBuffer failed: %v", err)
 	}
 
-	fmt.Printf("Listening for multicast address on %s\n", multicastAddress)
+	fmt.Printf("Listening for multicast address on %s\n", addrStr)
 
 	ml.listenLoop()
 }
