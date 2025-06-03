@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/davenicholson-xyz/wallchemy-sync/app"
 	"github.com/davenicholson-xyz/wallchemy-sync/network"
@@ -30,11 +31,17 @@ func main() {
 
 	app := app.NewApp(*port, indentifier)
 
+	messageHandler := func(msg string) string {
+		msg = strings.TrimSpace(msg)
+		fmt.Printf("%s\n", msg)
+		return ""
+	}
+
 	udp := network.NewMulticastListener(app.Port, app.Identifier)
 	udp.Start()
 	defer udp.Stop()
 
-	ipc := network.NewIPCListener()
+	ipc := network.NewIPCListener(messageHandler)
 	ipc.Start()
 	defer ipc.Stop()
 

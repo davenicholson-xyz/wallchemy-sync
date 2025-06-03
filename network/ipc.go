@@ -6,16 +6,16 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"strings"
 )
 
 type IPCListener struct {
 	listener net.Listener
 	path     string
 	stopChan chan struct{}
+	handler  func(string) string
 }
 
-func NewIPCListener() *IPCListener {
+func NewIPCListener(handlerFunc func(string) string) *IPCListener {
 	var listener net.Listener
 	var path string
 	var err error
@@ -37,6 +37,7 @@ func NewIPCListener() *IPCListener {
 		listener: listener,
 		path:     path,
 		stopChan: make(chan struct{}),
+		handler:  handlerFunc,
 	}
 }
 
@@ -72,13 +73,13 @@ func (ipc *IPCListener) listenLoop() {
 				continue
 			}
 
-			go HandleConnection(conn)
+			go ipc.handleConnection(conn)
 		}
 	}
 
 }
 
-func HandleConnection(conn net.Conn) {
+func (ipc *IPCListener) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	buf := make([]byte, 1024)
@@ -88,10 +89,13 @@ func HandleConnection(conn net.Conn) {
 		return
 	}
 
-	message := strings.TrimSpace(string(buf[:n]))
-	fmt.Printf("Received message: %q\n", message)
+	message := string(buf[:n])
+	response := ipc.handler(message)
 
-	_, err = conn.Write([]byte("ACK: " + message + "\n"))
+	// message := strings.TrimSpace(string(buf[:n]))
+	// fmt.Printf("Received message: %q\n", message)
+
+	_, err = conn.Write([]byte(response))
 	if err != nil {
 		log.Println("Write error:", err)
 	}
