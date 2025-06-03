@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
-	"runtime"
 
 	"github.com/davenicholson-xyz/wallchemy-sync/app"
 	"github.com/davenicholson-xyz/wallchemy-sync/network"
@@ -31,30 +30,14 @@ func main() {
 
 	app := app.NewApp(*port, indentifier)
 
-	listener := network.NewMulticastListener(app.Port, app.Identifier)
-	listener.Start()
-	defer listener.Stop()
+	udp := network.NewMulticastListener(app.Port, app.Identifier)
+	udp.Start()
+	defer udp.Stop()
 
-	ipcListener, addr, err := network.NewIPCListener()
-	if err != nil {
-		log.Fatal("Failed to ceate listener:", err)
-	}
-	defer ipcListener.Close()
+	ipc := network.NewIPCListener()
+	ipc.Start()
+	defer ipc.Stop()
 
-	if runtime.GOOS != "windows" {
-		defer os.Remove(addr)
-	}
-
-	fmt.Printf("IPC listening on %s (%s)", addr, runtime.GOOS)
-
-	for {
-		conn, err := ipcListener.Accept()
-		if err != nil {
-			log.Println("Accept error:", err)
-			continue
-		}
-
-		go network.HandleConnection(conn)
-	}
+	select {}
 
 }
