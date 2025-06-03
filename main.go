@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,7 +15,6 @@ import (
 )
 
 func main() {
-
 	_, err := exec.LookPath("wallchemy")
 	if err != nil {
 		log.Fatal("wallchemy not found installed")
@@ -31,20 +31,25 @@ func main() {
 
 	app := app.NewApp(*port, indentifier)
 
-	messageHandler := func(msg string) string {
+	//TODO: Go to a start function and run these.
+
+	udpHandler := func(msg string, src *net.UDPAddr) {
+		fmt.Printf("[UDP][%s] From %s: %s\n", indentifier, src.IP, msg)
+	}
+
+	udp := network.NewMulticastListener(app.Port, app.Identifier, udpHandler)
+	udp.Start()
+	defer udp.Stop()
+
+	ipcHandler := func(msg string) string {
 		msg = strings.TrimSpace(msg)
 		fmt.Printf("%s\n", msg)
 		return ""
 	}
 
-	udp := network.NewMulticastListener(app.Port, app.Identifier)
-	udp.Start()
-	defer udp.Stop()
-
-	ipc := network.NewIPCListener(messageHandler)
+	ipc := network.NewIPCListener(ipcHandler)
 	ipc.Start()
 	defer ipc.Stop()
 
 	select {}
-
 }

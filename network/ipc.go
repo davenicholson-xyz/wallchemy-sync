@@ -43,7 +43,7 @@ func NewIPCListener(handlerFunc func(string) string) *IPCListener {
 
 func (ipc *IPCListener) Start() {
 	go ipc.listenLoop()
-	fmt.Printf("IPC listening on %s (%s)", ipc.path, runtime.GOOS)
+	fmt.Printf("IPC listening on %s (%s)\n", ipc.path, runtime.GOOS)
 }
 
 func (ipc *IPCListener) Stop() {

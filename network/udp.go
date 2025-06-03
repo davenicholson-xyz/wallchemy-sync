@@ -16,13 +16,16 @@ type MulticastListener struct {
 	port       int
 	conn       *net.UDPConn
 	stopChan   chan struct{}
+	handler    func(string, *net.UDPAddr)
+	localAddr  *net.UDPAddr
 }
 
-func NewMulticastListener(port int, id string) *MulticastListener {
+func NewMulticastListener(port int, id string, handlerFn func(string, *net.UDPAddr)) *MulticastListener {
 	return &MulticastListener{
 		identifier: id,
 		port:       port,
 		stopChan:   make(chan struct{}),
+		handler:    handlerFn,
 	}
 }
 
@@ -39,6 +42,7 @@ func (ml *MulticastListener) Start() {
 		log.Fatal("ListenMulticastUDP fail:", err)
 	}
 	ml.conn = conn
+	ml.localAddr = conn.LocalAddr().(*net.UDPAddr)
 
 	if err := conn.SetReadBuffer(maxDatagramSize); err != nil {
 		log.Printf("SetReadBuffer failed: %v", err)
@@ -55,32 +59,24 @@ func (ml *MulticastListener) listenLoop() {
 	for {
 		select {
 		case <-ml.stopChan:
-			fmt.Println("Multicast shutting down")
+			fmt.Printf("[%s] Multicast listener shutting down\n", ml.identifier)
 			return
 		default:
 			buffer := make([]byte, maxDatagramSize)
-
 			n, src, err := ml.conn.ReadFromUDP(buffer)
 			if err != nil {
-				log.Printf("ReadFromUDP failed: %v", err)
+				select {
+				case <-ml.stopChan:
+					return
+				default:
+					log.Printf("[%s] ReadFromUDP failed: %v\n", ml.identifier, err)
+				}
 				continue
 			}
 
 			message := string(buffer[:n])
-			ml.handleMessage(message, src)
+			ml.handler(message, src)
 		}
-	}
-
-}
-
-func (ml *MulticastListener) handleMessage(msg string, src *net.UDPAddr) {
-	switch msg {
-	case "HELLO":
-		fmt.Printf("[%s] New connection from %s\n", ml.identifier, src.IP)
-	case "GOODBYE":
-		fmt.Printf("[%s] Connection closed from %s\n", ml.identifier, src.IP)
-	default:
-		fmt.Printf("[%s] Received from %s: %s\n", ml.identifier, src.IP, msg)
 	}
 }
 
