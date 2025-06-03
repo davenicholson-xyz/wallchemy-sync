@@ -15,10 +15,15 @@ type MulticastListener struct {
 	identifier string
 	port       int
 	conn       *net.UDPConn
+	stopChan   chan struct{}
 }
 
 func NewMulticastListener(port int, id string) *MulticastListener {
-	return &MulticastListener{identifier: id, port: port}
+	return &MulticastListener{
+		identifier: id,
+		port:       port,
+		stopChan:   make(chan struct{}),
+	}
 }
 
 func (ml *MulticastListener) Start() {
@@ -41,22 +46,31 @@ func (ml *MulticastListener) Start() {
 
 	fmt.Printf("Listening for multicast address on %s\n", addrStr)
 
-	ml.listenLoop()
+	go ml.listenLoop()
 }
 
 func (ml *MulticastListener) listenLoop() {
+	defer ml.conn.Close()
+
 	for {
-		buffer := make([]byte, maxDatagramSize)
+		select {
+		case <-ml.stopChan:
+			fmt.Println("Multicast shutting down")
+			return
+		default:
+			buffer := make([]byte, maxDatagramSize)
 
-		n, src, err := ml.conn.ReadFromUDP(buffer)
-		if err != nil {
-			log.Printf("ReadFromUDP failed: %v", err)
-			continue
+			n, src, err := ml.conn.ReadFromUDP(buffer)
+			if err != nil {
+				log.Printf("ReadFromUDP failed: %v", err)
+				continue
+			}
+
+			message := string(buffer[:n])
+			ml.handleMessage(message, src)
 		}
-
-		message := string(buffer[:n])
-		ml.handleMessage(message, src)
 	}
+
 }
 
 func (ml *MulticastListener) handleMessage(msg string, src *net.UDPAddr) {
@@ -68,4 +82,8 @@ func (ml *MulticastListener) handleMessage(msg string, src *net.UDPAddr) {
 	default:
 		fmt.Printf("[%s] Received from %s: %s\n", ml.identifier, src.IP, msg)
 	}
+}
+
+func (ml *MulticastListener) Stop() {
+	close(ml.stopChan)
 }
