@@ -32,12 +32,11 @@ func main() {
 	app := app.NewApp(*port, indentifier)
 
 	udpHandler := func(msg string, src *net.UDPAddr) {
-		cmd := exec.Command("wallchemy", "-fromsync", "-id", msg)
+		cmd := exec.Command("wallchemy", "-id", msg)
 		_, err := cmd.Output()
 		if err != nil {
 			log.Fatal(err)
 		}
-		// fmt.Printf("[UDP][%s] From %s: %s\n", indentifier, src.IP, msg)
 	}
 
 	udp := network.NewMulticastListener(app.Port, app.Identifier, udpHandler, false)
