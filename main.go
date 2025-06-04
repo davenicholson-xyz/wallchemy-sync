@@ -32,11 +32,13 @@ func main() {
 	app := app.NewApp(*port, indentifier)
 
 	udpHandler := func(msg string, src *net.UDPAddr) {
-		cmd := exec.Command("wallchemy", "-id", msg)
-		_, err := cmd.Output()
-		if err != nil {
-			log.Fatal(err)
-		}
+		fmt.Println("This is being called", msg)
+
+		// cmd := exec.Command("wallchemy", "-id", msg)
+		// _, err := cmd.Output()
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
 	}
 
 	udp := network.NewMulticastListener(app.Port, app.Identifier, udpHandler, false)
@@ -45,7 +47,7 @@ func main() {
 
 	ipcHandler := func(msg string) string {
 		msg = strings.TrimSpace(msg)
-		udp.Broadcast(fmt.Sprintf("WALLPAPER: %s", msg), true)
+		udp.Broadcast(fmt.Sprintf("%s", msg), true)
 		fmt.Printf("%s\n", msg)
 		return ""
 	}
