@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"net"
 	"os"
 	"os/exec"
-	"strings"
+	"os/signal"
+	"syscall"
 
 	"github.com/davenicholson-xyz/wallchemy-sync/app"
 	"github.com/davenicholson-xyz/wallchemy-sync/network"
@@ -17,11 +17,16 @@ import (
 func main() {
 	_, err := exec.LookPath("wallchemy")
 	if err != nil {
-		log.Fatal("wallchemy not found installed")
+		log.Fatal("wallchemy not found in path")
 	}
 
+	fg := flag.Bool("fg", false, "run fg")
 	port := flag.Int("port", 9999, "port")
 	flag.Parse()
+
+	if !*fg {
+		daemonize()
+	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -29,32 +34,41 @@ func main() {
 	}
 	indentifier := fmt.Sprintf("%s-%06d", hostname, rand.Intn(100000))
 
-	app := app.NewApp(*port, indentifier)
-
-	udpHandler := func(msg string, src *net.UDPAddr) {
-		fmt.Println("This is being called", msg)
-
-		cmd := exec.Command("wallchemy", "-fromsync", "-id", msg)
-		_, err := cmd.Output()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	udp := network.NewMulticastListener(app.Port, app.Identifier, udpHandler, false)
+	udp := network.NewMulticastListener(*port, indentifier, app.HandleUDP, false)
 	udp.Start()
 	defer udp.Stop()
 
-	ipcHandler := func(msg string) string {
-		msg = strings.TrimSpace(msg)
-		udp.Broadcast(fmt.Sprintf("%s", msg), true)
-		fmt.Printf("%s\n", msg)
-		return ""
-	}
-
-	ipc := network.NewIPCListener(ipcHandler)
+	ipc := network.NewIPCListener(app.HandleIPC(udp))
 	ipc.Start()
 	defer ipc.Stop()
 
-	select {}
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	log.Printf("wallchemy-sync started on port %d", *port)
+	<-sigChan
+	log.Println("Shutting down...")
+}
+
+func daemonize() {
+	if os.Getppid() == 1 {
+		return
+	}
+
+	if os.Getenv("DAEMON_CHILD") != "1" {
+		os.Setenv("DAEMON_CHILD", "1")
+		cmd := exec.Command(os.Args[0], os.Args[1:]...)
+		cmd.Start()
+		os.Exit(0)
+	}
+
+	syscall.Setsid()
+
+	os.Chdir("/")
+
+	if f, err := os.OpenFile("/dev/null", os.O_RDWR, 0); err == nil {
+		os.Stdin = f
+		os.Stdout = f
+		os.Stderr = f
+	}
 }
