@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -79,11 +80,20 @@ func main() {
 				}
 				fmt.Printf("[UDP] Received from %s: %s\n", msg.Sender.String(), msg.Content)
 
-				cmd := exec.Command("wallchemy", "-fromsync", "-id", msg.Content)
-				_, err := cmd.Output()
-				if err != nil {
-					log.Fatal(err)
+				id := strings.TrimSpace(msg.Content)
+
+				cmd := exec.Command("wallchemy", "-fromsync", "-id", id)
+				if err := cmd.Start(); err != nil {
+					log.Printf("Failed to start wallchemy: %v", err)
+					continue
 				}
+
+				// Launch a goroutine to wait for the command
+				go func() {
+					if err := cmd.Wait(); err != nil {
+						log.Printf("wallchemy command failed: %v", err)
+					}
+				}()
 
 			}
 		}
