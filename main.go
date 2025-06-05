@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
+	"sync"
 	"syscall"
 
-	"github.com/davenicholson-xyz/wallchemy-sync/app"
+	"github.com/davenicholson-xyz/wallchemy-sync/daemonize"
 	"github.com/davenicholson-xyz/wallchemy-sync/network"
 )
 
@@ -20,55 +20,81 @@ func main() {
 		log.Fatal("wallchemy not found in path")
 	}
 
-	fg := flag.Bool("fg", false, "run fg")
+	fg := flag.Bool("fg", false, "start in foreground")
 	port := flag.Int("port", 9999, "port")
 	flag.Parse()
 
 	if !*fg {
-		daemonize()
+		if !daemonize.Start() {
+			return
+		}
+		log.Println("Running as daemon")
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
-	}
-	indentifier := fmt.Sprintf("%s-%06d", hostname, rand.Intn(100000))
-
-	udp := network.NewMulticastListener(*port, indentifier, app.HandleUDP, false)
+	udp := network.NewMulticastClient(network.UDPConfig{Port: *port})
 	udp.Start()
 	defer udp.Stop()
 
-	ipc := network.NewIPCListener(app.HandleIPC(udp))
+	ipc, _ := network.NewIPCClient(network.IPCConfig{AppName: "wallchemy-sync"})
 	ipc.Start()
 	defer ipc.Stop()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	log.Printf("wallchemy-sync started on port %d", *port)
+	stopChan := make(chan struct{})
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stopChan:
+				return
+			case msg, ok := <-ipc.Messages():
+				if !ok {
+					return
+				}
+				fmt.Printf("[IPC] Received %s\n", msg.Content)
+
+				if err := udp.Broadcast(msg.Content); err != nil {
+					log.Printf("Failed to broadcast IPC message: %v", err)
+					msg.ResponseCh <- "ERROR: Broadcast failed"
+				} else {
+					msg.ResponseCh <- "OK: Message broadcasted"
+				}
+
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stopChan:
+				return
+			case msg, ok := <-udp.Messages():
+				if !ok {
+					return
+				}
+				fmt.Printf("[UDP] Received from %s: %s\n", msg.Sender.String(), msg.Content)
+
+				// Switch wallpaper
+
+			}
+		}
+	}()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
 	<-sigChan
 	log.Println("Shutting down...")
-}
 
-func daemonize() {
-	if os.Getppid() == 1 {
-		return
-	}
+	close(stopChan)
 
-	if os.Getenv("DAEMON_CHILD") != "1" {
-		os.Setenv("DAEMON_CHILD", "1")
-		cmd := exec.Command(os.Args[0], os.Args[1:]...)
-		cmd.Start()
-		os.Exit(0)
-	}
+	wg.Wait()
 
-	syscall.Setsid()
+	log.Println("Shutdown complete")
 
-	os.Chdir("/")
-
-	if f, err := os.OpenFile("/dev/null", os.O_RDWR, 0); err == nil {
-		os.Stdin = f
-		os.Stdout = f
-		os.Stderr = f
-	}
 }
