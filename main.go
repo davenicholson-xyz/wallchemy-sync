@@ -35,7 +35,7 @@ func main() {
 	udp.Start()
 	defer udp.Stop()
 
-	ipc, _ := network.NewIPCClient(network.IPCConfig{AppName: "wallchemy-sync"})
+	ipc, _ := network.NewIPCClient(network.IPCConfig{AppName: "wallchemy"})
 	ipc.Start()
 	defer ipc.Stop()
 
@@ -79,7 +79,11 @@ func main() {
 				}
 				fmt.Printf("[UDP] Received from %s: %s\n", msg.Sender.String(), msg.Content)
 
-				// Switch wallpaper
+				cmd := exec.Command("wallchemy", "-fromsync", "-id", msg.Content)
+				_, err := cmd.Output()
+				if err != nil {
+					log.Fatal(err)
+				}
 
 			}
 		}
