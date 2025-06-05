@@ -99,7 +99,7 @@ func setupDaemonCommand(cmd *exec.Cmd, config *Config) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	} else {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid: true,
+			// Setsid: true,
 		}
 
 		if config.RedirectStreams {
