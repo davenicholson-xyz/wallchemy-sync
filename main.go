@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -84,12 +83,7 @@ func main() {
 				log.Printf("[UDP] Received from %s: %s\n", msg.Sender.String(), msg.Content)
 
 				id := strings.TrimSpace(msg.Content)
-				cmd := exec.Command("wallchemy", "-fromsync", "-id", id)
-				if runtime.GOOS == "windows" {
-					cmd.SysProcAttr = &syscall.SysProcAttr{
-						HideWindow: true,
-					}
-				}
+				cmd := createCommand("wallchemy", "-fromsync", "-id", id)
 				if err := cmd.Start(); err != nil {
 					log.Printf("Failed to start wallchemy: %v", err)
 					continue
