@@ -35,7 +35,10 @@ func main() {
 	udp.Start()
 	defer udp.Stop()
 
-	ipc, _ := network.NewIPCClient(network.IPCConfig{AppName: "wallchemy"})
+	ipc, err := network.NewIPCClient(network.IPCConfig{AppName: "wallchemy"})
+	if err != nil {
+		log.Println(err)
+	}
 	ipc.Start()
 	defer ipc.Stop()
 

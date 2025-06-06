@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/Microsoft/go-winio" // For Windows named pipes
 )
 
 const (
@@ -53,31 +55,35 @@ func NewIPCClient(config IPCConfig) (*IPCClient, error) {
 
 	if config.Path != "" {
 		path = config.Path
-		if runtime.GOOS == "windows" {
-			listener, err = net.Listen("pipe", path)
-		} else {
-			os.Remove(path)
-			listener, err = net.Listen("unix", path)
-		}
 	} else if config.AppName != "" {
 		if runtime.GOOS == "windows" {
 			path = fmt.Sprintf(`\\.\pipe\%s`, config.AppName)
-			listener, err = net.Listen("pipe", path)
 		} else {
 			path = fmt.Sprintf("/tmp/%s.sock", config.AppName)
-			os.Remove(path)
-			listener, err = net.Listen("unix", path)
 		}
 	} else {
-
 		if runtime.GOOS == "windows" {
-			path = `\\.\pipe\app_ipc`
-			listener, err = net.Listen("pipe", path)
+			path = `\\.\pipe\wallchemy_sync`
 		} else {
-			path = "/tmp/app_ipc.sock"
-			os.Remove(path)
-			listener, err = net.Listen("unix", path)
+			path = "/tmp/wallchemy_sync.sock"
 		}
+	}
+
+	// Remove existing socket file (Unix only)
+	if runtime.GOOS != "windows" {
+		os.Remove(path)
+	}
+
+	// Create listener based on OS
+	if runtime.GOOS == "windows" {
+		listener, err = winio.ListenPipe(path, &winio.PipeConfig{
+			SecurityDescriptor: "D:P(A;;GA;;;AU)", // Allow generic all access to authenticated users
+			MessageMode:        true,              // Use message mode
+			InputBufferSize:    65536,             // 64KB
+			OutputBufferSize:   65536,             // 64KB
+		})
+	} else {
+		listener, err = net.Listen("unix", path)
 	}
 
 	if err != nil {
