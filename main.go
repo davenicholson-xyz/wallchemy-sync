@@ -20,8 +20,8 @@ func main() {
 		log.Fatal("wallchemy not found in path")
 	}
 
-	fg := flag.Bool("fg", false, "start in foreground")
-	port := flag.Int("port", 9999, "port")
+	fg := flag.Bool("fg", false, "Run in the foreground")
+	port := flag.Int("port", 9999, "Port")
 	flag.Parse()
 
 	if !*fg {

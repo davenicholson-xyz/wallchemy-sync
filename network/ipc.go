@@ -15,15 +15,13 @@ const (
 	DefaultChannelBuffer = 100
 )
 
-// IPCMessage represents a message received via IPC
 type IPCMessage struct {
 	Content    string
 	Connection net.Conn
 	Time       time.Time
-	ResponseCh chan string // Channel to send response back
+	ResponseCh chan string
 }
 
-// IPCClient provides cross-platform IPC communication
 type IPCClient struct {
 	listener    net.Listener
 	path        string
@@ -34,15 +32,13 @@ type IPCClient struct {
 	running     bool
 }
 
-// IPCConfig holds configuration options for the IPCClient
 type IPCConfig struct {
-	AppName       string // Application name for auto-generating paths
-	Path          string // Custom path (optional, overrides AppName)
-	BufferSize    int    // Buffer size for reading messages
-	ChannelBuffer int    // Buffer size for message channel
+	AppName       string
+	Path          string
+	BufferSize    int
+	ChannelBuffer int
 }
 
-// NewIPCClient creates a new IPC client with the given configuration
 func NewIPCClient(config IPCConfig) (*IPCClient, error) {
 	if config.BufferSize == 0 {
 		config.BufferSize = DefaultBufferSize
@@ -56,16 +52,14 @@ func NewIPCClient(config IPCConfig) (*IPCClient, error) {
 	var err error
 
 	if config.Path != "" {
-		// Use custom path
 		path = config.Path
 		if runtime.GOOS == "windows" {
 			listener, err = net.Listen("pipe", path)
 		} else {
-			os.Remove(path) // Remove existing socket
+			os.Remove(path)
 			listener, err = net.Listen("unix", path)
 		}
 	} else if config.AppName != "" {
-		// Generate path from app name
 		if runtime.GOOS == "windows" {
 			path = fmt.Sprintf(`\\.\pipe\%s`, config.AppName)
 			listener, err = net.Listen("pipe", path)
@@ -75,7 +69,7 @@ func NewIPCClient(config IPCConfig) (*IPCClient, error) {
 			listener, err = net.Listen("unix", path)
 		}
 	} else {
-		// Use default paths
+
 		if runtime.GOOS == "windows" {
 			path = `\\.\pipe\app_ipc`
 			listener, err = net.Listen("pipe", path)
@@ -99,7 +93,6 @@ func NewIPCClient(config IPCConfig) (*IPCClient, error) {
 	}, nil
 }
 
-// Start begins listening for IPC connections
 func (ipc *IPCClient) Start() error {
 	ipc.mu.Lock()
 	defer ipc.mu.Unlock()
@@ -115,7 +108,6 @@ func (ipc *IPCClient) Start() error {
 	return nil
 }
 
-// listenLoop runs the main listening loop in a goroutine
 func (ipc *IPCClient) listenLoop() {
 	defer func() {
 		ipc.mu.Lock()
@@ -148,7 +140,6 @@ func (ipc *IPCClient) listenLoop() {
 	}
 }
 
-// handleConnection processes an individual connection
 func (ipc *IPCClient) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -159,7 +150,6 @@ func (ipc *IPCClient) handleConnection(conn net.Conn) {
 		return
 	}
 
-	// Create response channel
 	responseCh := make(chan string, 1)
 
 	message := IPCMessage{
@@ -169,10 +159,8 @@ func (ipc *IPCClient) handleConnection(conn net.Conn) {
 		ResponseCh: responseCh,
 	}
 
-	// Send message to channel (non-blocking)
 	select {
 	case ipc.messageChan <- message:
-		// Wait for response
 		select {
 		case response := <-responseCh:
 			_, err := conn.Write([]byte(response))
@@ -186,12 +174,10 @@ func (ipc *IPCClient) handleConnection(conn net.Conn) {
 	}
 }
 
-// Messages returns the read-only message channel
 func (ipc *IPCClient) Messages() <-chan IPCMessage {
 	return ipc.messageChan
 }
 
-// Stop gracefully shuts down the IPC client
 func (ipc *IPCClient) Stop() {
 	ipc.mu.RLock()
 	if !ipc.running {
@@ -202,27 +188,23 @@ func (ipc *IPCClient) Stop() {
 
 	close(ipc.stopChan)
 
-	// Clean up socket file on Unix systems
 	if runtime.GOOS != "windows" {
 		os.Remove(ipc.path)
 	}
 }
 
-// IsRunning returns whether the client is currently running
 func (ipc *IPCClient) IsRunning() bool {
 	ipc.mu.RLock()
 	defer ipc.mu.RUnlock()
 	return ipc.running
 }
 
-// GetPath returns the IPC path
 func (ipc *IPCClient) GetPath() string {
 	ipc.mu.RLock()
 	defer ipc.mu.RUnlock()
 	return ipc.path
 }
 
-// SendToIPC is a utility function to send a message to an IPC server
 func SendToIPC(path, message string) (string, error) {
 	var conn net.Conn
 	var err error
@@ -238,13 +220,11 @@ func SendToIPC(path, message string) (string, error) {
 	}
 	defer conn.Close()
 
-	// Send message
 	_, err = conn.Write([]byte(message))
 	if err != nil {
 		return "", fmt.Errorf("failed to send message: %v", err)
 	}
 
-	// Read response
 	buf := make([]byte, DefaultBufferSize)
 	n, err := conn.Read(buf)
 	if err != nil {

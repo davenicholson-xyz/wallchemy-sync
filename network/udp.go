@@ -13,14 +13,12 @@ const (
 	DefaultDatagramSize     = 8192
 )
 
-// UDPMessage represents a received multicast message
 type UDPMessage struct {
 	Content string
 	Sender  *net.UDPAddr
 	Time    time.Time
 }
 
-// MulticastClient provides multicast UDP communication capabilities
 type MulticastClient struct {
 	multicastAddr string
 	port          int
@@ -34,16 +32,14 @@ type MulticastClient struct {
 	running       bool
 }
 
-// UDPConfig holds configuration options for the MulticastClient
 type UDPConfig struct {
-	MulticastAddress string // Default: DefaultMulticastAddress
-	Port             int    // Required
-	FilterSelf       bool   // Whether to ignore messages from self
-	DatagramSize     int    // Default: DefaultDatagramSize
-	ChannelBuffer    int    // Default: DefaultChannelBuffer
+	MulticastAddress string
+	Port             int
+	FilterSelf       bool
+	DatagramSize     int
+	ChannelBuffer    int
 }
 
-// NewMulticastClient creates a new multicast client with the given configuration
 func NewMulticastClient(config UDPConfig) *MulticastClient {
 	if config.MulticastAddress == "" {
 		config.MulticastAddress = DefaultMulticastAddress
@@ -65,7 +61,6 @@ func NewMulticastClient(config UDPConfig) *MulticastClient {
 	}
 }
 
-// Start begins listening for multicast messages
 func (mc *MulticastClient) Start() error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
@@ -99,14 +94,13 @@ func (mc *MulticastClient) Start() error {
 	return nil
 }
 
-// listenLoop runs the main listening loop in a goroutine
 func (mc *MulticastClient) listenLoop() {
 	defer func() {
 		mc.mu.Lock()
 		if mc.conn != nil {
 			mc.conn.Close()
 		}
-		close(mc.messageChan) // Close channel when done
+		close(mc.messageChan)
 		mc.running = false
 		mc.mu.Unlock()
 	}()
@@ -130,7 +124,6 @@ func (mc *MulticastClient) listenLoop() {
 				}
 			}
 
-			// Filter self messages if enabled
 			if mc.filterSelf && mc.localAddr != nil && src.IP.Equal(mc.localAddr.IP) {
 				continue
 			}
@@ -141,24 +134,21 @@ func (mc *MulticastClient) listenLoop() {
 				Time:    time.Now(),
 			}
 
-			// Send to channel with non-blocking send
 			select {
 			case mc.messageChan <- message:
-				// Message sent successfully
+
 			default:
-				// Channel full, drop message
+
 				log.Printf("Warning: message channel full, dropping message from %s", src.String())
 			}
 		}
 	}
 }
 
-// Messages returns the read-only message channel
 func (mc *MulticastClient) Messages() <-chan UDPMessage {
 	return mc.messageChan
 }
 
-// Broadcast sends a message to the multicast group
 func (mc *MulticastClient) Broadcast(message string) error {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
@@ -180,7 +170,6 @@ func (mc *MulticastClient) Broadcast(message string) error {
 	return nil
 }
 
-// Stop gracefully shuts down the multicast client
 func (mc *MulticastClient) Stop() {
 	mc.mu.RLock()
 	if !mc.running {
@@ -192,14 +181,12 @@ func (mc *MulticastClient) Stop() {
 	close(mc.stopChan)
 }
 
-// IsRunning returns whether the client is currently running
 func (mc *MulticastClient) IsRunning() bool {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 	return mc.running
 }
 
-// GetLocalAddr returns the local address of the connection
 func (mc *MulticastClient) GetLocalAddr() *net.UDPAddr {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
