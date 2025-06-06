@@ -1,8 +1,9 @@
-<h2>wallchemy-sync</h2>
+<h2>Wallchemy Sync</h2>
 
-wallchemy-sync is a cross platform companion app for the [wallchemy](https://github.com/davenicholson-xyz/wallchemy) wallpaper changer. Any desktops running wallchemy-sync will automatically match the wallpaper chagne to any other desktop running the sync app.
 
-wallchemy-sync requires [wallchemy](https://github.com/davenicholson-xyz/wallchemy) to be installed and working. 
+`wallchemy-sync` is a cross platform companion app for the [wallchemy](https://github.com/davenicholson-xyz/wallchemy) wallpaper changer. Any desktops running `wallchemy-sync` will automatically match the wallpaper change to any other desktop running the sync app.
+
+`wallchemy-sync` requires [wallchemy](https://github.com/davenicholson-xyz/wallchemy) to be installed and working. 
 
 ---
 
