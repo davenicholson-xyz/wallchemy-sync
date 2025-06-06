@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -84,6 +85,11 @@ func main() {
 
 				id := strings.TrimSpace(msg.Content)
 				cmd := exec.Command("wallchemy", "-fromsync", "-id", id)
+				if runtime.GOOS == "windows" {
+					cmd.SysProcAttr = &syscall.SysProcAttr{
+						HideWindow: true,
+					}
+				}
 				if err := cmd.Start(); err != nil {
 					log.Printf("Failed to start wallchemy: %v", err)
 					continue
