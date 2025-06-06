@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -55,7 +54,7 @@ func main() {
 				if !ok {
 					return
 				}
-				fmt.Printf("[IPC] Received %s\n", msg.Content)
+				log.Printf("[IPC] Received %s\n", msg.Content)
 
 				if err := udp.Broadcast(msg.Content); err != nil {
 					log.Printf("Failed to broadcast IPC message: %v", err)
@@ -78,17 +77,15 @@ func main() {
 				if !ok {
 					return
 				}
-				fmt.Printf("[UDP] Received from %s: %s\n", msg.Sender.String(), msg.Content)
+				log.Printf("[UDP] Received from %s: %s\n", msg.Sender.String(), msg.Content)
 
 				id := strings.TrimSpace(msg.Content)
-
 				cmd := exec.Command("wallchemy", "-fromsync", "-id", id)
 				if err := cmd.Start(); err != nil {
 					log.Printf("Failed to start wallchemy: %v", err)
 					continue
 				}
 
-				// Launch a goroutine to wait for the command
 				go func() {
 					if err := cmd.Wait(); err != nil {
 						log.Printf("wallchemy command failed: %v", err)
@@ -103,6 +100,7 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	<-sigChan
+
 	log.Println("Shutting down...")
 
 	close(stopChan)
