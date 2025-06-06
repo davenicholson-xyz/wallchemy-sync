@@ -4,12 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"runtime"
 	"sync"
 	"time"
-
-	"github.com/Microsoft/go-winio" // For Windows named pipes
 )
 
 const (
@@ -49,43 +45,8 @@ func NewIPCClient(config IPCConfig) (*IPCClient, error) {
 		config.ChannelBuffer = DefaultChannelBuffer
 	}
 
-	var listener net.Listener
-	var path string
-	var err error
-
-	if config.Path != "" {
-		path = config.Path
-	} else if config.AppName != "" {
-		if runtime.GOOS == "windows" {
-			path = fmt.Sprintf(`\\.\pipe\%s`, config.AppName)
-		} else {
-			path = fmt.Sprintf("/tmp/%s.sock", config.AppName)
-		}
-	} else {
-		if runtime.GOOS == "windows" {
-			path = `\\.\pipe\wallchemy_sync`
-		} else {
-			path = "/tmp/wallchemy_sync.sock"
-		}
-	}
-
-	// Remove existing socket file (Unix only)
-	if runtime.GOOS != "windows" {
-		os.Remove(path)
-	}
-
-	// Create listener based on OS
-	if runtime.GOOS == "windows" {
-		listener, err = winio.ListenPipe(path, &winio.PipeConfig{
-			SecurityDescriptor: "D:P(A;;GA;;;AU)", // Allow generic all access to authenticated users
-			MessageMode:        true,              // Use message mode
-			InputBufferSize:    65536,             // 64KB
-			OutputBufferSize:   65536,             // 64KB
-		})
-	} else {
-		listener, err = net.Listen("unix", path)
-	}
-
+	path := determinePath(config)
+	listener, err := createListener(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IPC listener: %v", err)
 	}
@@ -96,6 +57,7 @@ func NewIPCClient(config IPCConfig) (*IPCClient, error) {
 		stopChan:    make(chan struct{}),
 		messageChan: make(chan IPCMessage, config.ChannelBuffer),
 		bufferSize:  config.BufferSize,
+		running:     false,
 	}, nil
 }
 
@@ -108,7 +70,7 @@ func (ipc *IPCClient) Start() error {
 	}
 
 	ipc.running = true
-	fmt.Printf("IPC listening on %s (%s)\n", ipc.path, runtime.GOOS)
+	log.Printf("IPC listening on %s\n", ipc.path)
 	go ipc.listenLoop()
 
 	return nil
@@ -128,7 +90,7 @@ func (ipc *IPCClient) listenLoop() {
 	for {
 		select {
 		case <-ipc.stopChan:
-			fmt.Println("IPC client shutting down")
+			log.Println("IPC client shutting down")
 			return
 		default:
 			conn, err := ipc.listener.Accept()
@@ -193,10 +155,7 @@ func (ipc *IPCClient) Stop() {
 	ipc.mu.RUnlock()
 
 	close(ipc.stopChan)
-
-	if runtime.GOOS != "windows" {
-		os.Remove(ipc.path)
-	}
+	cleanupPath(ipc.path)
 }
 
 func (ipc *IPCClient) IsRunning() bool {
@@ -206,27 +165,11 @@ func (ipc *IPCClient) IsRunning() bool {
 }
 
 func (ipc *IPCClient) GetPath() string {
-	ipc.mu.RLock()
-	defer ipc.mu.RUnlock()
 	return ipc.path
 }
 
-func SendToIPC(path, message string) (string, error) {
-	var conn net.Conn
-	var err error
-
-	if runtime.GOOS == "windows" {
-		conn, err = net.Dial("pipe", path)
-	} else {
-		conn, err = net.Dial("unix", path)
-	}
-
-	if err != nil {
-		return "", fmt.Errorf("failed to connect to IPC: %v", err)
-	}
-	defer conn.Close()
-
-	_, err = conn.Write([]byte(message))
+func sendAndReceive(conn net.Conn, message string) (string, error) {
+	_, err := conn.Write([]byte(message))
 	if err != nil {
 		return "", fmt.Errorf("failed to send message: %v", err)
 	}
