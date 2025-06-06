@@ -1,5 +1,7 @@
 <h2>Wallchemy Sync</h2>
 
+[![Release](https://img.shields.io/github/release/davenicholson-xyz/wallchemy-sync.svg)](https://github.com/davenicholson-xyz/wallchemy-sync/releases/latest)
+[![Platforms](https://img.shields.io/badge/platforms-linux%20|%20macos%20|%20windows-blue)]()
 
 `wallchemy-sync` is a cross platform companion app for the [wallchemy](https://github.com/davenicholson-xyz/wallchemy) wallpaper changer. Any desktops running `wallchemy-sync` will automatically match the wallpaper change to any other desktop running the sync app.
 
